@@ -10,6 +10,9 @@ interface ZipCode {
   ambulance_count: number;
   fire_truck_count: number;
   police_count: number;
+  is_ambulance_depot: boolean;
+  is_fire_truck_depot: boolean;
+  is_police_depot: boolean;
 }
 
 interface Edge {
@@ -33,25 +36,52 @@ export function GraphVisualization({ zipCodes, edges, mstEdges, dispatchPath }: 
   useEffect(() => {
     if (!containerRef.current || zipCodes.length === 0) return;
 
-    // Create nodes with vehicle counts
+    // Create nodes with vehicle counts and depot indicators
     const nodes = new DataSet(
-      zipCodes.map((zip) => ({
-        id: zip.code,
-        label: `${zip.code}\n🚑 ${zip.ambulance_count} 🚒 ${zip.fire_truck_count} 👮 ${zip.police_count}`,
-        title: `${zip.name}\nAmbulance: ${zip.ambulance_count}\nFire Truck: ${zip.fire_truck_count}\nPolice: ${zip.police_count}`,
-        color: {
-          background: 'hsl(var(--card))',
-          border: 'hsl(var(--border))',
-          highlight: {
-            background: 'hsl(var(--primary))',
-            border: 'hsl(var(--primary))',
+      zipCodes.map((zip) => {
+        let depotLabel = '';
+        let depotColor = 'hsl(var(--card))';
+        let borderColor = 'hsl(var(--border))';
+        let borderWidth = 2;
+        
+        if (zip.is_ambulance_depot) {
+          depotLabel = '\n🏥 AMBULANCE DEPOT';
+          depotColor = 'hsl(var(--emergency-red) / 0.15)';
+          borderColor = 'hsl(var(--emergency-red))';
+          borderWidth = 4;
+        } else if (zip.is_fire_truck_depot) {
+          depotLabel = '\n🚒 FIRE DEPOT';
+          depotColor = 'hsl(var(--emergency-orange) / 0.15)';
+          borderColor = 'hsl(var(--emergency-orange))';
+          borderWidth = 4;
+        } else if (zip.is_police_depot) {
+          depotLabel = '\n👮 POLICE DEPOT';
+          depotColor = 'hsl(var(--emergency-blue) / 0.15)';
+          borderColor = 'hsl(var(--emergency-blue))';
+          borderWidth = 4;
+        }
+        
+        return {
+          id: zip.code,
+          label: `${zip.code}${depotLabel}\n🚑 ${zip.ambulance_count} 🚒 ${zip.fire_truck_count} 👮 ${zip.police_count}`,
+          title: `${zip.name}\nAmbulance: ${zip.ambulance_count}\nFire Truck: ${zip.fire_truck_count}\nPolice: ${zip.police_count}`,
+          color: {
+            background: depotColor,
+            border: borderColor,
+            highlight: {
+              background: 'hsl(var(--primary) / 0.2)',
+              border: 'hsl(var(--primary))',
+            },
           },
-        },
-        font: {
-          size: 14,
-          color: 'hsl(var(--foreground))',
-        },
-      }))
+          borderWidth: borderWidth,
+          font: {
+            size: 12,
+            color: 'hsl(var(--foreground))',
+            face: 'Inter, system-ui, sans-serif',
+            bold: zip.is_ambulance_depot || zip.is_fire_truck_depot || zip.is_police_depot ? '14px' : 'normal',
+          },
+        };
+      })
     );
 
     // Create edges
@@ -92,43 +122,66 @@ export function GraphVisualization({ zipCodes, edges, mstEdges, dispatchPath }: 
 
     const edgesDataSet = new DataSet(edgeData);
 
-    // Network options
+    // Network options with improved styling
     const options = {
       nodes: {
         shape: 'box',
-        size: 25,
-        borderWidth: 2,
+        size: 30,
+        margin: { top: 10, right: 10, bottom: 10, left: 10 },
+        borderWidthSelected: 3,
         font: {
-          size: 14,
-          face: 'monospace',
+          size: 12,
+          face: 'Inter, system-ui, sans-serif',
+          multi: 'html',
+        },
+        shadow: {
+          enabled: true,
+          color: 'rgba(0,0,0,0.1)',
+          size: 8,
+          x: 2,
+          y: 2,
         },
       },
       edges: {
         smooth: {
           enabled: true,
-          type: 'continuous',
-          roundness: 0.5,
+          type: 'curvedCW',
+          roundness: 0.2,
         },
         font: {
-          size: 12,
+          size: 11,
           color: 'hsl(var(--muted-foreground))',
+          strokeWidth: 3,
+          strokeColor: 'hsl(var(--background))',
+        },
+        shadow: {
+          enabled: true,
+          color: 'rgba(0,0,0,0.08)',
+          size: 5,
         },
       },
       physics: {
         enabled: true,
         stabilization: {
-          iterations: 200,
+          iterations: 300,
+          updateInterval: 25,
         },
         barnesHut: {
-          gravitationalConstant: -2000,
-          springConstant: 0.001,
-          springLength: 200,
+          gravitationalConstant: -3000,
+          springConstant: 0.002,
+          springLength: 180,
+          damping: 0.3,
         },
       },
       interaction: {
         hover: true,
         zoomView: true,
         dragView: true,
+        tooltipDelay: 100,
+        navigationButtons: true,
+      },
+      layout: {
+        improvedLayout: true,
       },
     };
 
@@ -143,27 +196,31 @@ export function GraphVisualization({ zipCodes, edges, mstEdges, dispatchPath }: 
   }, [zipCodes, edges, mstEdges, dispatchPath]);
 
   return (
-    <Card className="p-6">
+    <Card className="p-6 bg-gradient-to-br from-card to-muted/30">
       <div className="mb-4">
-        <h3 className="text-lg font-semibold mb-2">Dispatch Network Graph</h3>
-        <div className="flex gap-4 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
+        <h3 className="text-xl font-bold mb-3">Network Visualization</h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
+          <div className="flex items-center gap-2 p-2 bg-card rounded-md border">
             <div className="w-8 h-0.5 bg-primary"></div>
             <span>MST Edges</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 p-2 bg-card rounded-md border">
             <div className="w-8 h-0.5 border-t-2 border-dashed border-border"></div>
             <span>Other Edges</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 p-2 bg-card rounded-md border">
             <div className="w-8 h-1 bg-[hsl(var(--emergency-red))]"></div>
-            <span>Dispatch Path</span>
+            <span>Active Path</span>
+          </div>
+          <div className="flex items-center gap-2 p-2 bg-card rounded-md border">
+            <div className="w-6 h-6 rounded border-4 border-primary bg-primary/10"></div>
+            <span>Depot</span>
           </div>
         </div>
       </div>
       <div
         ref={containerRef}
-        className="w-full h-[500px] bg-background rounded-lg border"
+        className="w-full h-[600px] bg-gradient-to-br from-background to-muted/20 rounded-xl border-2 shadow-inner"
       />
     </Card>
   );

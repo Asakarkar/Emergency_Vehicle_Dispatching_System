@@ -90,6 +90,9 @@ export type Database = {
           created_at: string
           fire_truck_count: number
           id: string
+          is_ambulance_depot: boolean | null
+          is_fire_truck_depot: boolean | null
+          is_police_depot: boolean | null
           latitude: number
           longitude: number
           name: string
@@ -101,6 +104,9 @@ export type Database = {
           created_at?: string
           fire_truck_count?: number
           id?: string
+          is_ambulance_depot?: boolean | null
+          is_fire_truck_depot?: boolean | null
+          is_police_depot?: boolean | null
           latitude: number
           longitude: number
           name: string
@@ -112,6 +118,9 @@ export type Database = {
           created_at?: string
           fire_truck_count?: number
           id?: string
+          is_ambulance_depot?: boolean | null
+          is_fire_truck_depot?: boolean | null
+          is_police_depot?: boolean | null
           latitude?: number
           longitude?: number
           name?: string

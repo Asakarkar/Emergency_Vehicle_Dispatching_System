@@ -17,6 +17,9 @@ interface ZipCode {
   ambulance_count: number;
   fire_truck_count: number;
   police_count: number;
+  is_ambulance_depot: boolean;
+  is_fire_truck_depot: boolean;
+  is_police_depot: boolean;
 }
 
 interface Edge {
@@ -134,7 +137,7 @@ export default function Index() {
     try {
       const { data, error } = await supabase.functions.invoke('dispatch-vehicle', {
         body: {
-          sourceZipCode: selectedZipCode,
+          destinationZipCode: selectedZipCode,
           vehicleType: selectedVehicle,
         },
       });
@@ -211,22 +214,59 @@ export default function Index() {
           />
         </div>
 
+        {/* Depot Information */}
+        <Card className="p-6 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+          <h2 className="text-xl font-bold mb-4">Vehicle Depots</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {zipCodes.filter(z => z.is_ambulance_depot).map(depot => (
+              <div key={depot.id} className="flex items-center gap-2 p-3 bg-card rounded-lg border">
+                <Ambulance className="w-5 h-5" style={{ color: 'hsl(var(--emergency-red))' }} />
+                <div>
+                  <div className="font-semibold">{depot.code}</div>
+                  <div className="text-xs text-muted-foreground">Ambulance Depot</div>
+                </div>
+              </div>
+            ))}
+            {zipCodes.filter(z => z.is_fire_truck_depot).map(depot => (
+              <div key={depot.id} className="flex items-center gap-2 p-3 bg-card rounded-lg border">
+                <Flame className="w-5 h-5" style={{ color: 'hsl(var(--emergency-orange))' }} />
+                <div>
+                  <div className="font-semibold">{depot.code}</div>
+                  <div className="text-xs text-muted-foreground">Fire Truck Depot</div>
+                </div>
+              </div>
+            ))}
+            {zipCodes.filter(z => z.is_police_depot).map(depot => (
+              <div key={depot.id} className="flex items-center gap-2 p-3 bg-card rounded-lg border">
+                <Shield className="w-5 h-5" style={{ color: 'hsl(var(--emergency-blue))' }} />
+                <div>
+                  <div className="font-semibold">{depot.code}</div>
+                  <div className="text-xs text-muted-foreground">Police Depot</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
         {/* Dispatch Control Panel */}
         <Card className="p-6 space-y-6">
           <div>
-            <h2 className="text-2xl font-bold mb-6">Dispatch Control</h2>
+            <h2 className="text-2xl font-bold mb-6">Emergency Dispatch</h2>
             
             <div className="space-y-6">
               {/* Zip Code Selection */}
-              <ZipCodeSelector
-                zipCodes={zipCodes}
-                selectedZipCode={selectedZipCode}
-                onSelectZipCode={setSelectedZipCode}
-              />
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Select Emergency Location</label>
+                <ZipCodeSelector
+                  zipCodes={zipCodes}
+                  selectedZipCode={selectedZipCode}
+                  onSelectZipCode={setSelectedZipCode}
+                />
+              </div>
 
               {/* Vehicle Type Selection */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Select Vehicle Type</label>
+                <label className="text-sm font-medium">Select Emergency Vehicle Type</label>
                 <VehicleSelector
                   selectedVehicle={selectedVehicle}
                   onSelectVehicle={setSelectedVehicle}
@@ -248,7 +288,7 @@ export default function Index() {
                 ) : (
                   <>
                     <Siren className="w-5 h-5 mr-2" />
-                    Dispatch Emergency Vehicle
+                    Request Emergency Vehicle
                   </>
                 )}
               </Button>

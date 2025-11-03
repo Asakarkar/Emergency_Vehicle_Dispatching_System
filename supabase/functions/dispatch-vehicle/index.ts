@@ -63,6 +63,9 @@ interface ZipCode {
   ambulance_count: number;
   fire_truck_count: number;
   police_count: number;
+  is_ambulance_depot: boolean;
+  is_fire_truck_depot: boolean;
+  is_police_depot: boolean;
 }
 
 // Kruskal's Algorithm to find MST
@@ -85,51 +88,81 @@ function kruskalMST(edges: Edge[], nodes: Set<string>): Edge[] {
   return mstEdges;
 }
 
-// BFS to find shortest path in MST
+// Dijkstra's algorithm to find shortest path
 function findShortestPath(
-  mstEdges: Edge[],
+  edges: Edge[],
   sourceId: string,
   targetId: string,
   zipCodes: Map<string, ZipCode>
 ): { path: string[], distance: number } {
   const graph = new Map<string, Array<{ node: string; weight: number }>>();
-
-  // Build adjacency list from MST edges
-  mstEdges.forEach(edge => {
+  
+  // Build adjacency list from all edges
+  edges.forEach(edge => {
     if (!graph.has(edge.source_zip_id)) graph.set(edge.source_zip_id, []);
     if (!graph.has(edge.dest_zip_id)) graph.set(edge.dest_zip_id, []);
-
+    
     graph.get(edge.source_zip_id)!.push({ node: edge.dest_zip_id, weight: edge.weight });
     graph.get(edge.dest_zip_id)!.push({ node: edge.source_zip_id, weight: edge.weight });
   });
 
-  // BFS with distance tracking
-  const queue: Array<{ node: string; path: string[]; distance: number }> = [
-    { node: sourceId, path: [sourceId], distance: 0 }
-  ];
-  const visited = new Set<string>([sourceId]);
+  // Dijkstra's algorithm
+  const distances = new Map<string, number>();
+  const previous = new Map<string, string | null>();
+  const unvisited = new Set<string>();
 
-  while (queue.length > 0) {
-    const { node, path, distance } = queue.shift()!;
+  // Initialize
+  zipCodes.forEach((_, id) => {
+    distances.set(id, Infinity);
+    previous.set(id, null);
+    unvisited.add(id);
+  });
+  distances.set(sourceId, 0);
 
-    if (node === targetId) {
-      return { path: path.map(id => zipCodes.get(id)!.code), distance };
-    }
-
-    const neighbors = graph.get(node) || [];
-    for (const { node: neighbor, weight } of neighbors) {
-      if (!visited.has(neighbor)) {
-        visited.add(neighbor);
-        queue.push({
-          node: neighbor,
-          path: [...path, neighbor],
-          distance: distance + weight
-        });
+  while (unvisited.size > 0) {
+    // Find node with minimum distance
+    let minNode: string | null = null;
+    let minDist = Infinity;
+    unvisited.forEach(node => {
+      const dist = distances.get(node)!;
+      if (dist < minDist) {
+        minDist = dist;
+        minNode = node;
       }
-    }
+    });
+
+    if (minNode === null || minDist === Infinity) break;
+    
+    unvisited.delete(minNode);
+    
+    if (minNode === targetId) break;
+
+    // Update distances to neighbors
+    const neighbors = graph.get(minNode) || [];
+    neighbors.forEach(({ node: neighbor, weight }) => {
+      if (unvisited.has(neighbor)) {
+        const alt = distances.get(minNode!)! + weight;
+        if (alt < distances.get(neighbor)!) {
+          distances.set(neighbor, alt);
+          previous.set(neighbor, minNode);
+        }
+      }
+    });
   }
 
-  return { path: [], distance: 0 };
+  // Reconstruct path
+  const path: string[] = [];
+  let current: string | null = targetId;
+  
+  while (current !== null) {
+    path.unshift(zipCodes.get(current)!.code);
+    current = previous.get(current) || null;
+  }
+
+  return { 
+    path: path.length > 1 ? path : [], 
+    distance: distances.get(targetId) || 0 
+  };
 }
 
 Deno.serve(async (req) => {
@@ -143,9 +176,9 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    const { sourceZipCode, vehicleType } = await req.json();
+    const { destinationZipCode, vehicleType } = await req.json();
 
-    console.log('Dispatch request:', { sourceZipCode, vehicleType });
+    console.log('Dispatch request:', { destinationZipCode, vehicleType });
 
     // Fetch all zip codes
     const { data: zipCodes, error: zipError } = await supabase
@@ -155,30 +188,42 @@ Deno.serve(async (req) => {
     if (zipError) throw zipError;
 
     const zipCodeMap = new Map(zipCodes.map((z: ZipCode) => [z.id, z]));
-    const sourceZip = zipCodes.find((z: ZipCode) => z.code === sourceZipCode);
+    const destZip = zipCodes.find((z: ZipCode) => z.code === destinationZipCode);
 
-    if (!sourceZip) {
-      throw new Error('Source zip code not found');
+    if (!destZip) {
+      throw new Error('Destination zip code not found');
     }
 
-    // Check vehicle availability at source
-    const vehicleCountKey = `${vehicleType}_count` as keyof ZipCode;
-    const availableAtSource = sourceZip[vehicleCountKey] as number > 0;
+    // Find depot for the vehicle type
+    const depotFlagKey = `is_${vehicleType}_depot` as keyof ZipCode;
+    const depotZip = zipCodes.find((z: ZipCode) => z[depotFlagKey] === true);
 
-    if (availableAtSource) {
-      // Dispatch from source
+    if (!depotZip) {
+      throw new Error(`No depot found for ${vehicleType}`);
+    }
+
+    // Check vehicle availability at depot
+    const vehicleCountKey = `${vehicleType}_count` as keyof ZipCode;
+    const availableAtDepot = depotZip[vehicleCountKey] as number > 0;
+
+    if (!availableAtDepot) {
+      throw new Error(`No ${vehicleType} available at depot ${depotZip.code}`);
+    }
+
+    // If destination is the depot itself
+    if (depotZip.id === destZip.id) {
       await supabase
         .from('zip_codes')
-        .update({ [vehicleCountKey]: sourceZip[vehicleCountKey] as number - 1 })
-        .eq('id', sourceZip.id);
+        .update({ [vehicleCountKey]: depotZip[vehicleCountKey] as number - 1 })
+        .eq('id', depotZip.id);
 
       await supabase
         .from('dispatch_logs')
         .insert({
           vehicle_type: vehicleType,
-          source_zip_code: sourceZipCode,
-          dest_zip_code: sourceZipCode,
-          path: [sourceZipCode],
+          source_zip_code: depotZip.code,
+          dest_zip_code: destinationZipCode,
+          path: [destinationZipCode],
           distance: 0
         });
 
@@ -186,81 +231,67 @@ Deno.serve(async (req) => {
         JSON.stringify({
           success: true,
           dispatched: true,
-          sourceZipCode,
-          destZipCode: sourceZipCode,
-          path: [sourceZipCode],
+          sourceZipCode: depotZip.code,
+          destZipCode: destinationZipCode,
+          path: [destinationZipCode],
           distance: 0,
-          message: `${vehicleType} dispatched from ${sourceZipCode}`
+          message: `${vehicleType} dispatched from depot ${depotZip.code} to ${destinationZipCode}`
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Find nearest available zip code using MST
+    // Fetch all edges
     const { data: edges, error: edgesError } = await supabase
       .from('edges')
       .select('*');
 
     if (edgesError) throw edgesError;
 
-    // Build MST
+    // Build MST for visualization
     const allNodes = new Set(zipCodes.map((z: ZipCode) => z.id));
     const mstEdges = kruskalMST(edges, allNodes);
 
     console.log('MST computed with', mstEdges.length, 'edges');
 
-    // Find nearest zip with available vehicle
-    let nearestZip: ZipCode | null = null;
-    let shortestPath: string[] = [];
-    let shortestDistance = Infinity;
+    // Find shortest path from depot to destination using Dijkstra
+    const { path, distance } = findShortestPath(edges, depotZip.id, destZip.id, zipCodeMap);
 
-    for (const zip of zipCodes) {
-      if (zip.id !== sourceZip.id && (zip[vehicleCountKey] as number) > 0) {
-        const { path, distance } = findShortestPath(mstEdges, sourceZip.id, zip.id, zipCodeMap);
-        
-        if (distance > 0 && distance < shortestDistance) {
-          shortestDistance = distance;
-          shortestPath = path;
-          nearestZip = zip;
-        }
-      }
+    if (path.length === 0) {
+      throw new Error(`No path found from depot ${depotZip.code} to ${destinationZipCode}`);
     }
 
-    if (!nearestZip) {
-      throw new Error(`No available ${vehicleType} found in any connected zip code`);
-    }
-
-    // Update vehicle count
+    // Update vehicle count at depot
     await supabase
       .from('zip_codes')
-      .update({ [vehicleCountKey]: nearestZip[vehicleCountKey] as number - 1 })
-      .eq('id', nearestZip.id);
+      .update({ [vehicleCountKey]: depotZip[vehicleCountKey] as number - 1 })
+      .eq('id', depotZip.id);
 
     // Log dispatch
     await supabase
       .from('dispatch_logs')
       .insert({
         vehicle_type: vehicleType,
-        source_zip_code: sourceZipCode,
-        dest_zip_code: nearestZip.code,
-        path: shortestPath,
-        distance: shortestDistance
+        source_zip_code: depotZip.code,
+        dest_zip_code: destinationZipCode,
+        path: path,
+        distance: distance
       });
 
     return new Response(
       JSON.stringify({
         success: true,
         dispatched: true,
-        sourceZipCode,
-        destZipCode: nearestZip.code,
-        path: shortestPath,
-        distance: shortestDistance,
+        sourceZipCode: depotZip.code,
+        destZipCode: destinationZipCode,
+        path: path,
+        distance: distance,
         mstEdges: mstEdges.map(e => ({
           source: zipCodeMap.get(e.source_zip_id)!.code,
           dest: zipCodeMap.get(e.dest_zip_id)!.code,
           weight: e.weight
         })),
-        message: `${vehicleType} dispatched from ${nearestZip.code} to ${sourceZipCode} (${shortestDistance} km)`
+        message: `${vehicleType} dispatched from depot ${depotZip.code} to ${destinationZipCode} (${distance} km)`
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
