@@ -87,8 +87,6 @@ function kruskalMST(edges: Edge[], nodes: Set<string>): Edge[] {
 
   return mstEdges;
 }
-
-// Dijkstra's algorithm to find shortest path
 function findShortestPath(
   edges: Edge[],
   sourceId: string,
@@ -106,7 +104,6 @@ function findShortestPath(
     graph.get(edge.dest_zip_id)!.push({ node: edge.source_zip_id, weight: edge.weight });
   });
 
-  // Dijkstra's algorithm
   const distances = new Map<string, number>();
   const previous = new Map<string, string | null>();
   const unvisited = new Set<string>();
