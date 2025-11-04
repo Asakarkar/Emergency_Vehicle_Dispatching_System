@@ -1,73 +1,109 @@
-# Welcome to your Lovable project
+# 🚨 Emergency Vehicle Dispatching System  
+### *Design and Analysis of Algorithms (DAA) Project – 2025–26*  
 
-## Project info
+> “When every second counts, our algorithm saves lives.”  
 
-**URL**: https://lovable.dev/projects/34703471-3dfc-4d62-910f-555323253308
+---
 
-## How can I edit this code?
+## 🧠 Overview  
 
-There are several ways of editing your application.
+The **Emergency Vehicle Dispatching System (EVDS)** is a full-stack application that manages and dispatches emergency vehicles — **Ambulance 🚑, Fire Truck 🚒, and Police 🚓** — based on their **availability** and **nearest location**.  
 
-**Use Lovable**
+This project uses **Kruskal’s Algorithm** (implemented in **C++**) to construct a **Minimum Spanning Tree (MST)** of all connected zip codes. The MST ensures the dispatch network operates on **minimum total travel distance**, allowing emergency vehicles to reach destinations quickly and efficiently.  
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/34703471-3dfc-4d62-910f-555323253308) and start prompting.
+---
 
-Changes made via Lovable will be committed automatically to this repo.
+## 🎯 Objectives  
 
-**Use your preferred IDE**
+- Apply **graph algorithms** (Kruskal’s MST) to optimize dispatch routes.  
+- Build an **interactive visualization** of the emergency network.  
+- Enable **real-time updates** of vehicle availability.  
+- Demonstrate **algorithmic problem-solving (DAA concepts)** in a real-world scenario.  
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+---
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## ⚙️ Tech Stack  
 
-Follow these steps:
+| Component | Technology |
+|------------|-------------|
+| **Frontend** | React + Tailwind CSS |
+| **Backend API** | Node.js (Express.js) |
+| **Algorithm Module** | C++ (Kruskal’s MST implementation) |
+| **Database** | Firebase / Supabase |
+| **Graph Visualization** | D3.js or vis.js |
+| **Integration** | C++ executed via WebAssembly or Node bridge |
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+---
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## 🧩 Algorithm Used – Kruskal’s Algorithm (C++)  
 
-# Step 3: Install the necessary dependencies.
-npm i
+### 🔹 Concept  
+Kruskal’s Algorithm is a **Greedy Algorithm** used to find the **Minimum Spanning Tree (MST)** in a connected, weighted graph.  
+In this project:
+- Each **zip code** = Node  
+- Each **road between zip codes** = Edge with weight (distance)  
+- The MST forms the **optimal dispatch network**, minimizing total travel distance.  
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+---
 
-**Edit a file directly in GitHub**
+### 🧮 Pseudocode  
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```cpp
+#include <bits/stdc++.h>
+using namespace std;
 
-**Use GitHub Codespaces**
+struct Edge {
+    int src, dest, weight;
+};
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+struct Subset {
+    int parent, rank;
+};
 
-## What technologies are used for this project?
+int find(vector<Subset> &subsets, int i) {
+    if (subsets[i].parent != i)
+        subsets[i].parent = find(subsets, subsets[i].parent);
+    return subsets[i].parent;
+}
 
-This project is built with:
+void Union(vector<Subset> &subsets, int x, int y) {
+    int xroot = find(subsets, x);
+    int yroot = find(subsets, y);
+    if (subsets[xroot].rank < subsets[yroot].rank)
+        subsets[xroot].parent = yroot;
+    else if (subsets[xroot].rank > subsets[yroot].rank)
+        subsets[yroot].parent = xroot;
+    else {
+        subsets[yroot].parent = xroot;
+        subsets[xroot].rank++;
+    }
+}
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+void KruskalMST(vector<Edge> &edges, int V) {
+    vector<Edge> result;
+    sort(edges.begin(), edges.end(), [](Edge a, Edge b) {
+        return a.weight < b.weight;
+    });
 
-## How can I deploy this project?
+    vector<Subset> subsets(V);
+    for (int v = 0; v < V; v++) {
+        subsets[v].parent = v;
+        subsets[v].rank = 0;
+    }
 
-Simply open [Lovable](https://lovable.dev/projects/34703471-3dfc-4d62-910f-555323253308) and click on Share -> Publish.
+    int e = 0, i = 0;
+    while (e < V - 1 && i < edges.size()) {
+        Edge next = edges[i++];
+        int x = find(subsets, next.src);
+        int y = find(subsets, next.dest);
+        if (x != y) {
+            result.push_back(next);
+            Union(subsets, x, y);
+            e++;
+        }
+    }
 
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+    cout << "Edges in the constructed MST:\n";
+    for (auto &edge : result)
+        cout << edge.src << " -- " << edge.dest << " == " << edge.weight << endl;
+}
